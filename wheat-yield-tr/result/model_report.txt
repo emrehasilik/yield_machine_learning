@@ -1,0 +1,41 @@
+DATASET
+Rows: 1559 | Provinces: 78 | Years: 2005-2024
+Numeric features (15): ['tmean_season', 'tmax_season', 'tmin_season', 'rain_season_sum', 'rad_season_mean', 'tmean_mam', 'tmax_mam', 'tmin_mam', 'rain_mam_sum', 'rad_mam_mean', 'ndvi_auc', 'ndvi_max', 'ndvi_mean', 'evi_max', 'evi_mean']
+Ignored non-numeric columns: ['province']
+
+HOLDOUT TEST (years 2020-2024)
+           model        R2      RMSE       MAE
+    RandomForest  0.389032 68.403725 54.410397
+GradientBoosting  0.383956 68.687313 54.273186
+           Ridge  0.271449 74.696541 59.035809
+    BaselineMean -0.150197 93.854851 72.831070
+
+YEAR-FOLD CV (5 folds) - mean over folds
+           model        R2      RMSE       MAE
+    RandomForest  0.522224 55.961968 44.753187
+GradientBoosting  0.498552 57.413595 45.611920
+           Ridge  0.398898 62.841208 49.550026
+    BaselineMean -0.059986 83.664946 66.413831
+
+Per-fold details:
+ fold          test_years            model        R2      RMSE       MAE
+    1 2005,2006,2007,2008     BaselineMean -0.120016 87.096150 71.693704
+    1 2005,2006,2007,2008            Ridge  0.493890 58.547629 44.893784
+    1 2005,2006,2007,2008     RandomForest  0.542828 55.645057 44.907428
+    1 2005,2006,2007,2008 GradientBoosting  0.526216 56.647051 45.099407
+    2 2009,2010,2011,2012     BaselineMean -0.026263 75.496489 59.382587
+    2 2009,2010,2011,2012            Ridge  0.309083 61.945603 49.330843
+    2 2009,2010,2011,2012     RandomForest  0.449709 55.283268 44.382196
+    2 2009,2010,2011,2012 GradientBoosting  0.435766 55.979267 44.868808
+    3 2013,2014,2015,2016     BaselineMean -0.002291 78.365256 62.609545
+    3 2013,2014,2015,2016            Ridge  0.473840 56.778713 44.894274
+    3 2013,2014,2015,2016     RandomForest  0.635531 47.256019 37.415441
+    3 2013,2014,2015,2016 GradientBoosting  0.589321 50.162339 39.811411
+    4 2017,2018,2019,2020     BaselineMean -0.022090 82.288365 64.975474
+    4 2017,2018,2019,2020            Ridge  0.448095 60.468089 47.772364
+    4 2017,2018,2019,2020     RandomForest  0.615382 50.478783 39.715008
+    4 2017,2018,2019,2020 GradientBoosting  0.574696 53.081545 41.088188
+    5 2021,2022,2023,2024     BaselineMean -0.129270 95.078468 73.407843
+    5 2021,2022,2023,2024            Ridge  0.269584 76.466004 60.858868
+    5 2021,2022,2023,2024     RandomForest  0.367671 71.146712 57.345865
+    5 2021,2022,2023,2024 GradientBoosting  0.366763 71.197771 57.191785
