@@ -1,0 +1,49 @@
+============================================================
+MODEL V2 — TOPRAK VERISi EKLI
+============================================================
+Toplam satir   : 1559
+Numerik ozellik: 35  (v1: 27, yeni: +7 toprak)
+Toprak cols    : ['soil_clay', 'soil_sand', 'soil_silt', 'soil_soc', 'soil_phh2o', 'soil_bdod', 'soil_cec']
+
+--- HOLDOUT TEST (2020-2024) ---
+           model      R2  RMSE   MAE
+           Ridge  0.5517 58.60 45.47
+GradientBoosting  0.5136 61.03 47.60
+    RandomForest  0.5082 61.37 47.43
+    BaselineMean -0.1502 93.85 72.83
+
+--- 5-FOLD CV OZETI ---
+           model       R2   RMSE    MAE
+           Ridge  0.70514 43.776 34.288
+    RandomForest  0.69712 44.230 34.428
+GradientBoosting  0.67722 45.874 36.174
+    BaselineMean -0.06000 83.668 66.414
+
+--- CV FOLD DETAYI ---
+ fold          test_years            model      R2  RMSE   MAE
+    1 2005,2006,2007,2008     BaselineMean -0.1200 87.10 71.69
+    1 2005,2006,2007,2008            Ridge  0.6765 46.81 36.20
+    1 2005,2006,2007,2008     RandomForest  0.7086 44.43 34.08
+    1 2005,2006,2007,2008 GradientBoosting  0.6929 45.60 34.93
+    2 2009,2010,2011,2012     BaselineMean -0.0263 75.50 59.38
+    2 2009,2010,2011,2012            Ridge  0.6797 42.18 33.60
+    2 2009,2010,2011,2012     RandomForest  0.6565 43.68 33.98
+    2 2009,2010,2011,2012 GradientBoosting  0.6415 44.62 35.92
+    3 2013,2014,2015,2016     BaselineMean -0.0023 78.37 62.61
+    3 2013,2014,2015,2016            Ridge  0.8141 33.75 26.67
+    3 2013,2014,2015,2016     RandomForest  0.8203 33.18 25.98
+    3 2013,2014,2015,2016 GradientBoosting  0.7700 37.54 29.84
+    4 2017,2018,2019,2020     BaselineMean -0.0221 82.29 64.98
+    4 2017,2018,2019,2020            Ridge  0.7966 36.71 28.46
+    4 2017,2018,2019,2020     RandomForest  0.7923 37.09 28.58
+    4 2017,2018,2019,2020 GradientBoosting  0.7671 39.28 30.90
+    5 2021,2022,2023,2024     BaselineMean -0.1293 95.08 73.41
+    5 2021,2022,2023,2024            Ridge  0.5588 59.43 46.51
+    5 2021,2022,2023,2024     RandomForest  0.5079 62.77 49.52
+    5 2021,2022,2023,2024 GradientBoosting  0.5146 62.33 49.28
+
+============================================================
+V1 vs V2 KARSILASTIRMA (Ridge, Holdout)
+============================================================
+V1: Ridge  0.537604 59.508325 46.279166
+V2: Ridge  R2=0.5517  RMSE=58.6  MAE=45.47

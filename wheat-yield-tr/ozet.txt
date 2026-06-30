@@ -1,0 +1,680 @@
+================================================================================
+   TURKIYE IL BAZINDA BUGDAY VERIMI TAHMINI — PROJE RAPORU
+   Hibrit Veri Kaynagi + Makine Ogrenmesi Yaklasimi
+================================================================================
+
+Hazirlayan : Emre Hasilik
+Tarih       : Haziran 2026
+Proje Adi   : wheat-yield-tr
+Arac        : Python, scikit-learn, NASA POWER API, SoilGrids WCS, MODIS, TUIK
+
+
+================================================================================
+1. PROJENIN AMACI
+================================================================================
+
+Bu projenin temel amaci; Turkiye'nin 78 ilinde 2005-2024 yillari arasindaki
+bugday verimini (kg/dekar), kamuya acik ve ucretsiz veri kaynaklari kullanarak
+makine ogrenmesi ile tahmin etmektir.
+
+Motivasyon:
+  - Bugday, Turkiye'nin en kritik tahil urunu ve gida guvenliginin temelidir.
+  - Il bazinda erken verim tahmini; politika uretimi, stok planlamasi ve
+    ithalat/ihracat kararlari icin stratejik oneme sahiptir.
+  - Geleneksel tarim istatistikleri ancak hasat sonrasi aciklanmaktadir.
+    Uydu + meteoroloji verisiyle hasat oncesi tahmin yapilmasi hedeftir.
+
+Temel Soru:
+  "Sadece kamuya acik, ucretsiz veri kaynaklariyla il bazinda bugday verimi
+   ne kadar dogru tahmin edilebilir?"
+
+
+================================================================================
+2. VERi KAYNAKLARI — NE KULLANDIK, NEDEN KULLANDIK
+================================================================================
+
+Bu proje uc ana veri kaynagini birlestiren HIBRIT bir yapi kurar.
+
+------------------------------------------------------------------------
+2.1 MODIS Uydu Verisi — Vejetasyon Indisleri
+------------------------------------------------------------------------
+Kaynak   : NASA MODIS (Moderate Resolution Imaging Spectroradiometer)
+Format   : 4 adet CSV dosyasi (5'er yillik parcalar, 2005-2024)
+Cozunurl.: 500 metre piksel boyutu
+Icerik   : NDVI ve EVI vejetasyon indisleri
+
+  NDVI (Normalized Difference Vegetation Index):
+    Bitkinin ne kadar yogun ve saglikli oldugunu olcer.
+    Deger 0-1 arasinda; yuksek = daha yesil, daha saglıkli ekin.
+
+  EVI (Enhanced Vegetation Index):
+    NDVI'nin atmosfer etkilerinden arindirilmis versiyonu;
+    yogun vejetasyon alanlarinda daha guvenilir.
+
+Neden Kullandik:
+  Bugday tarlasinin yesillik durumu ile nihai verim arasinda guclu
+  korelasyon vardir. Uydu bu bilgiyi hasat oncesinde saglar.
+
+Cikartilan Ozellikler (il x yil bazinda):
+  ndvi_auc   : Sezon boyunca NDVI egri alti alan (toplam yesillik)
+  ndvi_max   : Sezonun en yuksek NDVI degeri (pik yesillik)
+  ndvi_mean  : Sezon ortalama NDVI
+  evi_max    : En yuksek EVI
+  evi_mean   : Ortalama EVI
+
+------------------------------------------------------------------------
+2.2 TUIK Resmi Tarim Istatistikleri
+------------------------------------------------------------------------
+Kaynak : Turkiye Istatistik Kurumu (TUIK)
+Format : Pipe-delimiter CSV
+Icerik : Il bazinda yillik bugday verimi (kg/dekar), 2004-2024
+
+Neden Kullandik:
+  Modelin ogrendigi HEDEF degisken budur. Devletin resmi olcumu
+  oldugu icin en guvenilir verim verisidir.
+
+Veri Temizligi:
+  - "Adana-1" gibi il kodu ekleri ayiklandi
+  - Turkce karakterler normalize edildi (c, s, i vb.)
+  - Virgul ondalik formatindan float'a cevrildi
+  - 2004 verisi MODIS ile ortusmediginden kapsam 2005'ten basladi
+
+------------------------------------------------------------------------
+2.3 NASA POWER API — Meteoroloji Verisi
+------------------------------------------------------------------------
+Kaynak   : NASA POWER (Prediction of Worldwide Energy Resources)
+Erisim   : REST API (https://power.larc.nasa.gov/api)
+Kapsam   : 2004-10-01 ile 2024-07-31 arasi gunluk veri
+Topluluk : AG (Agricultural community)
+
+Cekilen Degiskenler:
+  T2M          : Gunluk ortalama 2m hava sicakligi (°C)
+  T2M_MAX      : Gunluk maksimum 2m sicaklik (°C)
+  T2M_MIN      : Gunluk minimum 2m sicaklik (°C)
+  PRECTOTCORR  : Duzeltilmis gunluk toplam yagis (mm)
+  ALLSKY_SFC_SW_DWN : Yuzey gunes radyasyonu (MJ/m²/gun)
+
+Ornekleme Stratejisi (Neden 5 Nokta?):
+  NASA POWER bir koordinat bazli API'dir. Tek nokta bir ilin tamamini
+  temsil etmez (ornegin Konya 38.257 km²). Bu nedenle her il icin
+  sinirlari icerisinde RASTGELE 5 NOKTA secildi (seed=42, tekrarlanabilir)
+  ve bu 5 noktanin ortalamasi ilin temsili meteoroloji verisi olarak
+  kullanildi. Bu yaklasima literaturde "spatial sampling" denir.
+
+  - 80 il x 5 nokta = 400 noktadan veri cekildi
+  - Her nokta icin yaklasik 20 yillik gunluk veri (7,200 satir/nokta)
+  - Veriler cache'lendi (tekrar cekilmemesi icin)
+
+Cikartilan Meteoroloji Ozellikleri (il x yil bazinda):
+
+  SEZON GENELI (Ekim - Temmuz, 10 ay):
+    tmean          : Sezon ortalama sicaklik
+    tmax_mean      : Ortalama maksimum sicaklik
+    tmin_mean      : Ortalama minimum sicaklik
+    rain_sum       : Toplam yagis (mm)
+    rad_mean       : Ortalama gunes radyasyonu
+    tmean_std      : Sicaklik degiskenligi (std sapma)
+    tmax_p95       : 95. persentil maksimum sicaklik (asiri sicak gun esigi)
+    tmin_p05       : 5. persentil minimum sicaklik (asiri soguk gun esigi)
+    hot_days_30    : 30°C uzeri gun sayisi (sicaklik stresi)
+    frost_days_0   : 0°C alti gun sayisi (don stresi)
+    dry_days_lt1mm : 1mm alti yagisli gun sayisi (kuraklık stresi)
+
+  MART-MAYIS DONEMI (MAM — Kritik Buyume Donemi, ayrica):
+    mam_tmean, mam_tmax_mean, mam_tmin_mean, mam_rain_sum, mam_rad_mean,
+    mam_tmean_std, mam_tmax_p95, mam_tmin_p05, mam_hot_days_30,
+    mam_frost_days_0, mam_dry_days_lt1mm, mam_rad_mean
+
+  Neden MAM Ayri Alindi?
+    Bugdayda BASAK LANMA ve TANE DOLUMU Mart-Mayis aylarinda gerceklesen
+    bir surecte olur. Bu kritik donemi sezon ortalamasindan ayirmak,
+    modelin bu doneme ozel iklim stresini yakalamasi icin yapildi.
+
+------------------------------------------------------------------------
+2.4 Hasat Yili Tanimı — Kritik Metodoloji Karari
+------------------------------------------------------------------------
+Turkiye'de kislik bugday ekim-hasat dongusu:
+  Ekim (Sonbahar) -> Kis -> Ilkbahar -> Yaz basi hasat
+
+Bu nedenle "2010 hasati" icin gereken meteoroloji verisi
+Ekim 2009'da baslar, Temmuz 2010'da biter.
+
+Kodlama:
+  Ekim / Kasim / Aralik --> hasat_yili = o_yil + 1
+  Ocak -> Temmuz        --> hasat_yili = o_yil
+  Agustos / Eylul       --> None (disarda birakıldı — bosluk donemi)
+
+Bu tanimlama olmadan sezonluk meteoroloji ozellikleri yanlis
+yila atanacak, model yaniltici bir veri uzerinde egitilebilecekti.
+
+------------------------------------------------------------------------
+2.5 SoilGrids WCS — Toprak Verisi (Proje Gelistirme Asamasinda Eklendi)
+------------------------------------------------------------------------
+Kaynak   : ISRIC World Soil Information — SoilGrids v2.0
+Erisim   : WCS 1.0.0 (Web Coverage Service) via maps.isric.org
+Format   : GeoTIFF (rasterio ile okundu)
+Cozunurl.: 250 metre
+
+SORUN YASANDI:
+  SoilGrids REST API (rest.isric.org/soilgrids/v2.0/properties/query)
+  tum koordinatlar icin "layers: []" bos yanit donduruyor; sunucu tarafli
+  bir arizadir. Bu nedenle ALTERNATIF olarak WCS 1.0.0 endpoint'i kullanildi.
+
+COZUM:
+  Her il icin ayni 5 rastgele noktanin koordinati WCS'e gonderildi.
+  Her koordinat etrafinda kucuk bir bbox (±0.05 derece ≈ 5km) alinarak
+  3x3 piksel ortalamasi hesaplandi. 5 nokta ortalaması ilin toprak
+  degeri olarak atandi. Sonuclar JSON olarak cache'lendi.
+
+Cekilen Toprak Ozellikleri (0-30cm derinlik):
+  soil_clay  : Kil orani (g/kg) — su tutma kapasitesi
+  soil_sand  : Kum orani (g/kg) — drenaj hizi
+  soil_silt  : Silt orani (g/kg) — orta tekstur
+  soil_soc   : Organik karbon (dg/kg) — verimlilik gostergesi
+  soil_phh2o : pH degeri — bugday icin ideal 6-7 arasi
+  soil_bdod  : Hacim yogunlugu (g/cm³) — sıkısıklık, kok gelisimi
+  soil_cec   : Katyon degisim kapasitesi (mmol/kg) — besin tutma
+
+Neden Toprak Onemli?
+  Iki il ayni yagisi alabilir ama killi toprak suyu tutar, kumlu toprak
+  tutamaz -> farkli verim. Model bunu meteoroloji verisiyle anlayamaz.
+  Toprak ozellikleri STATIK'tir; bir kez cekilip her yila uygulanir.
+
+  Ornek Bulgular:
+    Adana (Cukurova):     soil_clay = 30.8% (orta-agir killi)
+    Sanliurfa (GAP):      soil_clay = 44.4% (agir killi ova)
+    Rize (Yagisli/ormanlık): soil_soc = 105  (cok yuksek organik karbon)
+    Karaman:              soil_cec  = 19.5  (dusuk besin tutma)
+
+------------------------------------------------------------------------
+2.6 Turetime Dayali Ozellikler (Feature Engineering)
+------------------------------------------------------------------------
+Orijinal kaynaklardaki ham veriden TURETILEN ek ozellikler:
+
+  GDD — Growing Degree Days (Buyume Derece Gunleri):
+    Formul: GDD_gun = max(0, (Tmax + Tmin) / 2 - 5)
+    Baz sicaklik 5°C = bugdayin buyumeye basladigi esik
+    Sezon boyunca toplanir -> gdd_season
+    MAM donemi ayrica -> gdd_mam
+
+    Neden GDD?
+      Ham ortalama sicaklik degil, BIRIKIMLI buyume enerjisi.
+      15°C 20 gun = 200 GDD; 25°C 10 gun = 200 GDD.
+      Farkli sicaklik profilleri ayni GDD'ye ulasabilir.
+      GDD fenolojik gelisimi (filizlenme, basak lanma, olgunlasma)
+      tahmin etmek icin tarih boyunca kullanilan bir metrik.
+
+    Literatur: Sensitivity analysis of wheat yield based on GDD
+               (ScienceDirect, 2023), R² artisi gozlemlenmis.
+
+  Lagged Yield (Gecikmeli Verim):
+    yield_lag1 = ayni ilin bir onceki yilki verimi
+    Neden?
+      Ciftci davranisi: iyi yildan sonra daha fazla giris (gubre, sulama)
+      Toprak hafizası: gecen yilin nem rezervi
+      Sosyoekonomik: iyi yil -> ekim alani genisler
+      78 il x ilk yil = 78 NaN (imputer ile dolduruldu)
+
+
+================================================================================
+3. VERi BIRLESIM STRATEJISI (MERGE)
+================================================================================
+
+Uc veri kaynagi (TUIK + Meteo + MODIS) asagidaki sekilde birlestirildí:
+
+  TUIK  (il, yil, verim)
+    |
+    | INNER JOIN (province_norm + harvest_year)
+    |
+  Meteo (il, yil, 26 meteo ozellik)
+    |
+    | INNER JOIN
+    |
+  MODIS (il, yil, 5 vejetasyon ozellik)
+    ||
+    V
+  dataset_model_v1.csv  [1559 satir, 31 kolon]
+
+  + LEFT JOIN ile toprak ozellikleri:
+  dataset_model_v2.csv  [1559 satir, 38 kolon]
+
+  + GDD + Lagged Yield turetime:
+  dataset_model_v3.csv  [1559 satir, 42 kolon]  <-- FINAL DATASET
+
+INNER JOIN Nedeni:
+  Model egitimi icin hedef degisken (verim), meteoroloji ve uydu
+  verisinin HEPSININ mevcut olmasi gerekir. Eksik kaynakli satirlar
+  modele dahil edilemez. 80 il x 20 yil = 1600 maksimum; inner join
+  sonrasi 1559 satir kaldi (41 veri eksikli il-yil cikarildi).
+
+Il Adi Normalizasyonu:
+  Uc kaynak farkli yazimlar kullaniyor. Tum kaynaklarda tutarli
+  eslestirme icin utils/names.py yazildi:
+    - Turkce karakterler ASCII'ye donusturuldu (c, s, ı vb.)
+    - Kisaltmalar duzeltildi: AFYON -> AFYONKARAHISAR
+    - Eski isimler guncellendi: ICEL -> MERSIN, K.MARAS -> KAHRAMANMARAS
+
+Eksik Il:
+  Duzce (1999'da Bolu'dan ayrilan 81. il) GeoJSON'da geometri olmadigi
+  icin analiz disinda kaldi. Tezde dipnot olarak belirtildi.
+
+
+================================================================================
+4. DATASET OZETI — FINAL V3
+================================================================================
+
+  Toplam Satir   : 1,559
+  Il Sayisi      : 78
+  Yil Araligi    : 2005 - 2024 (20 yil)
+  Toplam Kolon   : 42
+
+  Hedef Degisken (yield_kg_dekar):
+    Ortalama : 248.0 kg/dekar
+    Std Sap. :  83.1 kg/dekar
+    Min      :  42.0 kg/dekar
+    Medyan   : 243.0 kg/dekar
+    Maks     : 550.0 kg/dekar
+
+  Ozellik Gruplari:
+  +---------------------+----------+------------------------------------+
+  | Grup                | Ozellik  | Icerigi                            |
+  |                     | Sayisi   |                                    |
+  +---------------------+----------+------------------------------------+
+  | NDVI / EVI          |    5     | ndvi_auc, ndvi_max, ndvi_mean,     |
+  |                     |          | evi_max, evi_mean                  |
+  +---------------------+----------+------------------------------------+
+  | Meteo (Sezon)       |   11     | tmean, rain_sum, hot_days_30,      |
+  |                     |          | frost_days_0, tmax_p95 vb.         |
+  +---------------------+----------+------------------------------------+
+  | Meteo (MAM)         |   11     | mam_tmean, mam_rain_sum vb.        |
+  +---------------------+----------+------------------------------------+
+  | Toprak              |    7     | soil_clay, soil_sand, soil_soc,    |
+  |                     |          | soil_phh2o, soil_bdod, soil_cec,   |
+  |                     |          | soil_silt                          |
+  +---------------------+----------+------------------------------------+
+  | GDD                 |    3     | gdd_season, gdd_mam, gdd_mean_day  |
+  +---------------------+----------+------------------------------------+
+  | Lagged Yield        |    1     | yield_lag1                         |
+  +---------------------+----------+------------------------------------+
+  | Zaman               |    1     | harvest_year                       |
+  +---------------------+----------+------------------------------------+
+  | Kategorik           |    1     | province_norm (one-hot encoded)    |
+  +---------------------+----------+------------------------------------+
+  | TOPLAM              |   39+1   | 39 sayisal + 1 kategorik           |
+  +---------------------+----------+------------------------------------+
+
+  Veri Bolumu:
+    Egitim (Train)  : 2005-2019 -> 1,169 satir
+    Test (Holdout)  : 2020-2024 ->   390 satir
+
+
+================================================================================
+5. MODEL MIMARISI VE EGITIM STRATEJISI
+================================================================================
+
+------------------------------------------------------------------------
+5.1 Modeller
+------------------------------------------------------------------------
+
+Uc farkli algoritma karsilastirildi:
+
+  RIDGE REGRESSION (alpha=3.0):
+    - Dogrusal model, L2 regularizasyon ile overfitting'e karsi koruma
+    - Giris ozellikleri StandardScaler ile normalize edildi
+    - Yorumlanabilir, dugru eksikleri karsisinda saglamdir
+
+  RANDOM FOREST (n_estimators=600):
+    - 600 karar agacinin ortalamasi
+    - Olcekleme gerektirmez
+    - Yuksek boyutlu veriye iyi uyum saglar
+
+  GRADIENT BOOSTING:
+    - Hatalari sirali duzeltme prensibi
+    - sklearn varsayilan parametreleri
+    - Dogrusallık olmayan iliskileri yakalar
+
+  BASELINE (Mean Predictor):
+    - Egitim setinin ortalama verimini tum satirlara uygular
+    - Gercek bir "tahmin" yapmaz; diger modellerin ne kadar iyi oldugunu
+      anlamak icin referans noktasi
+
+------------------------------------------------------------------------
+5.2 On-Isleme Pipeline
+------------------------------------------------------------------------
+  Sayisal Ozellikler:
+    - Eksik Deger Dolumu: Medyan imputation
+    - Olcekleme (Ridge icin): StandardScaler
+  Kategorik Ozellikler:
+    - province_norm: One-Hot Encoding (handle_unknown='ignore')
+
+------------------------------------------------------------------------
+5.3 Degerlendirme Yontemi
+------------------------------------------------------------------------
+
+  HOLDOUT TEST:
+    2020-2024 yillari modele hic gosterilmeden test icin ayrildi.
+    Gercek dunya performansini olcer.
+
+  5-KATLI ZAMAN BAZLI CAPRAZ DOGRULAMA:
+    Yillar 4'er yillik bloklara ayrildi:
+      Fold 1: 2005-2008  |  Fold 2: 2009-2012  |  Fold 3: 2013-2016
+      Fold 4: 2017-2020  |  Fold 5: 2021-2024
+
+    Neden standart k-fold degil?
+      Zaman serisi verisinde gelecekteki veriyle model egitmek
+      "veri sizintisi" olusturur. Ardisik yil bloklari bu sorunu cozar.
+
+  METRIKLER:
+    R²   : Varyansın ne kadari aciklaniyor (1.0 = mukemmel)
+    RMSE : Ortalama karekok hata (kg/dekar birimi, dusuk = iyi)
+    MAE  : Ortalama mutlak hata (kg/dekar, dusuk = iyi)
+
+
+================================================================================
+6. SONUCLAR
+================================================================================
+
+------------------------------------------------------------------------
+6.1 Versiyon Gelisimi — Holdout Test (2020-2024), Ridge
+------------------------------------------------------------------------
+
+  +---------------------------+-------+-------+-------+----------+
+  | Versiyon                  |  R²   | RMSE  |  MAE  | Ozellik  |
+  |                           |       |kg/dek |kg/dek | Sayisi   |
+  +---------------------------+-------+-------+-------+----------+
+  | V1: Hava + NDVI           | 0.538 | 59.5  | 46.3  |   27     |
+  | V2: + Toprak              | 0.552 | 58.6  | 45.5  |   34     |
+  | V3: + GDD + Lagged Yield  | 0.608 | 54.8  | 41.9  |   39     |
+  +---------------------------+-------+-------+-------+----------+
+
+  Toplam Kazanim:
+    R²   : 0.538 -> 0.608  (+%13 rölätif iyilesme)
+    RMSE : 59.5  -> 54.8   (-4.7 kg/dekar)
+    MAE  : 46.3  -> 41.9   (-4.4 kg/dekar)
+
+------------------------------------------------------------------------
+6.2 Model Karsilastirmasi — V3, Holdout (2020-2024)
+------------------------------------------------------------------------
+
+  +--------------------+-------+-------+-------+
+  | Model              |  R²   | RMSE  |  MAE  |
+  +--------------------+-------+-------+-------+
+  | GradientBoosting   | 0.609 | 54.71 | 40.42 |
+  | Ridge              | 0.608 | 54.79 | 41.85 |
+  | RandomForest       | 0.581 | 56.63 | 42.26 |
+  | BaselineMean       |-0.150 | 93.85 | 72.83 |
+  +--------------------+-------+-------+-------+
+
+  Not: Baseline'in negatif R² degeri; model ortalama tahmini yaparken
+  bile gercek verimden kotu olduğunu gosterir — iller arasi varyans
+  cok yuksek. GBM ve Ridge neredeyse esit performans gosterdi.
+
+------------------------------------------------------------------------
+6.3 5-Katli Cross-Validation Ozeti — V3
+------------------------------------------------------------------------
+
+  +--------------------+-------+-------+-------+
+  | Model              |  R²   | RMSE  |  MAE  |
+  +--------------------+-------+-------+-------+
+  | Ridge              | 0.732 | 41.65 | 32.19 |
+  | GradientBoosting   | 0.689 | 44.96 | 33.91 |
+  | RandomForest       | 0.685 | 45.09 | 33.53 |
+  | BaselineMean       |-0.060 | 83.67 | 66.41 |
+  +--------------------+-------+-------+-------+
+
+------------------------------------------------------------------------
+6.4 Fold Bazinda Detay — V3, Ridge
+------------------------------------------------------------------------
+
+  +------+---------------+-------+-------+-------+
+  | Fold | Test Yillari  |  R²   | RMSE  |  MAE  |
+  +------+---------------+-------+-------+-------+
+  |  1   | 2005-2008     | 0.687 | 46.04 | 35.56 |
+  |  2   | 2009-2012     | 0.715 | 39.82 | 30.64 |
+  |  3   | 2013-2016     | 0.812 | 33.91 | 26.06 |
+  |  4   | 2017-2020     | 0.846 | 31.95 | 24.88 |
+  |  5   | 2021-2024     | 0.601 | 56.51 | 43.81 |
+  +------+---------------+-------+-------+-------+
+
+  Dikkat Cekici Bulgu:
+    Fold 3 ve 4 en iyi performans (R²=0.81-0.85). Bu donemde tarim
+    uygulamalari gorece istikrarlidir.
+    Fold 5 (2021-2024) belirgin dusus: COVID-19, Ukrayna savasi,
+    gubre fiyat soklari, ciddi kuraklık anomalileri bu donemin tahminini
+    zorlaştırmistir. Bu model hatasi degil, gercek dunya belirsizligidir.
+
+------------------------------------------------------------------------
+6.5 CV vs Holdout Farki
+------------------------------------------------------------------------
+  CV R²      = 0.732
+  Holdout R² = 0.608
+  Fark       = 0.124
+
+  Bu fark "dagilim kaymasini" (distribution shift) gosterir.
+  Model 2005-2019 donemi uzerinde egitildi; 2020-2024 donemi farkli
+  ekonomik ve iklimsel kosullar icerdiginden tahmin guclesir.
+  Bu beklenen ve literaturde yaygin gorulen bir durumdur.
+
+
+================================================================================
+7. FEATURE IMPORTANCE ANALIZI
+================================================================================
+
+Uc model icin ayri ayri hesaplandi, sonra normalize edilerek ortalanandi.
+  - Ridge icin: Permutation Importance (30 tekrar, test seti uzerinde)
+  - RF ve GBM icin: Dahili feature importance (impurity-based)
+
+------------------------------------------------------------------------
+7.1 Top 15 Ozellik — 3 Model Uzlasmasi
+------------------------------------------------------------------------
+
+  +------------------+-------+-------+-------+-------+
+  | Ozellik          | Ridge |  RF   |  GB   |  Ort. |
+  +------------------+-------+-------+-------+-------+
+  | yield_lag1       | 0.090 | 0.675 | 0.706 | 0.491 |
+  | mam_tmax_mean    | 0.187 | 0.005 | 0.002 | 0.065 |
+  | evi_mean         | 0.119 | 0.012 | 0.018 | 0.050 |
+  | soil_soc         | 0.131 | 0.009 | 0.006 | 0.049 |
+  | mam_tmin_mean    | 0.115 | 0.007 | 0.001 | 0.041 |
+  | evi_max          | 0.043 | 0.024 | 0.037 | 0.035 |
+  | soil_bdod        | 0.046 | 0.024 | 0.032 | 0.034 |
+  | ndvi_max         | 0.071 | 0.009 | 0.006 | 0.029 |
+  | rain_sum         | 0.005 | 0.022 | 0.025 | 0.017 |
+  | tmin_p05         | 0.022 | 0.014 | 0.015 | 0.017 |
+  | tmean_std        | 0.028 | 0.008 | 0.007 | 0.014 |
+  | frost_days_0     | 0.015 | 0.012 | 0.012 | 0.013 |
+  | tmean            | 0.008 | 0.009 | 0.022 | 0.013 |
+  | soil_phh2o       | 0.027 | 0.005 | 0.003 | 0.012 |
+  | ndvi_auc         | 0.016 | 0.006 | 0.009 | 0.010 |
+  +------------------+-------+-------+-------+-------+
+
+------------------------------------------------------------------------
+7.2 Grup Bazında Katki (Normalize, Ortalama)
+------------------------------------------------------------------------
+
+  +---------------------+--------+---------------------------+
+  | Veri Kaynagi        |  Katki |  Aciklama                 |
+  +---------------------+--------+---------------------------+
+  | Lagged Yield        |  49.0% | En guclu tek ozellik      |
+  | Meteo (MAM)         |  14.7% | Ilkbahar kritik donem     |
+  | NDVI / EVI          |  12.7% | Uydu vejetasyon indisi    |
+  | Toprak              |  11.1% | Statik ama anlamlı        |
+  | Meteo (Sezon)       |  10.8% | Genel iklim               |
+  | GDD                 |   0.9% | Dusuk (sicaklikla ortu.)  |
+  | Zaman               |   0.8% | Trend etkisi minimal      |
+  +---------------------+--------+---------------------------+
+
+------------------------------------------------------------------------
+7.3 Onemli Bulgular
+------------------------------------------------------------------------
+
+  1. Lagged Yield baskın:
+     Gecen yilin verimi tek basina modelin yaklasik %49'unu acikliyor.
+     RF ve GBM bu ozelligi %67-70 agirlıkla kullaniyor. Bugday verimi
+     yillar arasi YUKSEK OTOKORELASYON gosterir; ciftci davranisi ve
+     toprak hafizasi bunda buyuk rol oynar.
+
+  2. MAM donemi sezon genelindan daha onemli:
+     Mart-Mayis icin ayrica turetilen meteoroloji ozellikleri (14.7%)
+     sezon geneli ozelliklere (10.8%) gore daha fazla katki sagliyor.
+     Bu, basak lanma ve tane dolumu doneminin kritikligini dogruluyor.
+
+  3. Toprak %11 ile anlamlı katki:
+     soil_soc (organik karbon) ve soil_bdod (toprak yogunlugu) one
+     cikiyor. Toprak eklemesi model V2 R²'yi +0.014 artirdi; bu
+     sadece 7 statik ozellikle elde edilmis kayda deger bir kazanim.
+
+  4. GDD beklentin altinda kaldi (%1):
+     GDD ile mevcut sicaklik ozellikleri (tmean, mam_tmax_mean) arasinda
+     yuksek korelasyon var. Model bu bilgiyi zaten diger kanallar
+     uzerinden ogrenmis; GDD ek bilgi katamamis. Eklenmesi zararsiz
+     ancak kazanimi sinirli kaldi.
+
+  5. Ridge vs Agac Modelleri:
+     Ridge dogrusal bir model olmakla beraber CV'de en iyi performansi
+     gosteri. Bunun nedeni: il dummy degiskenler (one-hot) Ridge'e cok
+     bilgi katarken agac modelleri bu yuksek boyutlu sparse yapida
+     daha zayif kaliyor.
+
+
+================================================================================
+8. SONUCLAR VE DEGERLENDRME
+================================================================================
+
+------------------------------------------------------------------------
+8.1 Elde Edilen Performansin Degerlendirmesi
+------------------------------------------------------------------------
+
+  Ulaşılan Deger: Holdout R² = 0.608
+
+  Literaturle Karsilastirma:
+    Benzer Turkiye / Orta Dogu bugday tahmin calismalar: 0.60-0.80
+    Bizim V3 Holdout R²                                : 0.608
+    Bizim V3 CV R²                                     : 0.732
+
+  Sonuc olarak elde edilen degerler literaturle UYUMLUDUR.
+
+  Neden 0.608'den Yüksek Cikamadi?
+    Modelin erisemedigi ama verimi belirleyen faktorler:
+      - Kullanilan bugday cesidi (2023'te yayginlasin cesit, 2010'dakinden
+        farkli verim potansiyeli)
+      - Uygulanan gubre miktari ve tur
+      - Sulama erisimi ve uygulanan sulama miktari
+      - Hastalik / zarali baskisi (fungal hastaliklar, cekirdek yabuclari)
+      - Mekanizasyon duzey (bicerdover kaybi orani)
+
+    Bu degiskenlerin hicbiri kamu verisi olarak il bazinda mevcut degildir.
+    Bu nedenle 0.608, bu VERi SETi ICiN GERCEKCI BIR TAVAN YAKININDADIR.
+
+------------------------------------------------------------------------
+8.2 Projenin Akademik DegerI
+------------------------------------------------------------------------
+
+  Bu projenin guclu yonleri:
+
+  1. COK KAYNAKLI HiBRiT VERI:
+     Uydu (MODIS) + Meteoroloji (NASA POWER) + Resmi istatistik (TUIK)
+     + Toprak (SoilGrids) birlestirildi. Tek kaynak kullanimi yerine
+     dogrulama ve cok boyutlu anlayis saglandı.
+
+  2. METODOLOJIK TUTARLILIK:
+     Hasat yili tanimi, spatial sampling, inner join, zaman bazli CV
+     gibi kararlarin hepsinin mantigi belgelidir ve savunulabilirdir.
+
+  3. ITERATIF GELISTIRME:
+     V1'den V3'e kadar her adimda ne eklendigi ve neden R² arttigı
+     aciklanabilir. Juri onunde "neden bu ozelligi eklediniz" sorusuna
+     net yanit verilebilir.
+
+  4. FEATURE IMPORTANCE:
+     Hangi veri kaynaginin ne kadar katkı sagladigı nicel olarak
+     gosterilmistir.
+
+------------------------------------------------------------------------
+8.3 Sinirliliklar
+------------------------------------------------------------------------
+
+  - Duzce ili analiz disinda (GeoJSON eksikligi)
+  - 2020-2024 donemi COVID ve jeopolitik sarsintılar iceriyor;
+    model bu anormal donemin bazı etkilerini yakalayamiyor
+  - Il bazinda veri, ilce/tarla bazinda hassasiyetin altindadir
+  - Bugday cesidi, gubre, sulama verisi kamuya acik degildir
+  - GDD ile sicaklik ozellikleri arasindaki coklu dogrusallik
+    GDD'nin katkilini sinirlamistir
+
+
+================================================================================
+9. VERi AKISI OZETI (PIPELINE)
+================================================================================
+
+  [data/raw/]
+      |
+      |-- TR_Wheat_MODIS_*.csv -----> 01_prepare_modis.py -----> modis_features.csv
+      |
+      |-- tuik_wheat_yield.csv -----> 02_prepare_tuik.py ------> tuik_yield_long.csv
+      |
+      |-- provinces.geojson -------> 03_fetch_nasa_power.py --> nasa_power_daily_province.csv
+      |                               (cache: nasa_cache_points/)
+      |                              04_build_meteo_features.py -> meteo_harvest_il.csv
+      |
+      |-- provinces.geojson -------> 07_fetch_soil.py ---------> soil_features.csv
+                                      (cache: soil_cache_points/)
+
+  [MERGE ASAMALARI]
+  modis + tuik + meteo -----> 05_merge_dataset.py ------> dataset_model_v1.csv
+  v1 + toprak ------------> 08_merge_soil.py ----------> dataset_model_v2.csv
+  v2 + GDD + lag ---------> 10_add_features.py --------> dataset_model_v3.csv
+
+  [MODEL EGITIMI]
+  dataset_model_v1.csv ----> 06_train_models.py -------> model_v1.joblib
+  dataset_model_v2.csv ----> 09_train_models_v2.py ----> model_v2.joblib
+  dataset_model_v3.csv ----> 11_train_models_v3.py ----> model_v3.joblib  <-- FINAL
+
+  [ANALiZ]
+  model_v3.joblib ---------> 12_feature_importance.py -> feature_importance_v3.csv
+
+
+================================================================================
+10. TEKNIK ORTAM
+================================================================================
+
+  Dil          : Python 3.13
+  Kutuphaneler :
+    pandas      — veri manipulasyonu
+    numpy       — sayisal islemler
+    scikit-learn — model egitimi, pipeline, metrikler
+    requests    — API istekleri (NASA POWER, SoilGrids)
+    shapely     — GeoJSON geometri isleme (nokta ornekleme)
+    rasterio    — GeoTIFF okuma (SoilGrids WCS)
+    joblib      — model kaydetme / yukleme
+
+  API Endpointleri:
+    NASA POWER  : https://power.larc.nasa.gov/api/temporal/daily/point
+    SoilGrids   : https://maps.isric.org/mapserv (WCS 1.0.0)
+    NOT: SoilGrids REST API (rest.isric.org) proje surecinde arizalanmis,
+         WCS alternatifine gecilmistir.
+
+  Proje Yapisi:
+    wheat-yield-tr/
+    +-- cache/
+    |   +-- nasa_cache_points/   (400 CSV — NASA gunluk nokta verisi)
+    |   +-- soil_cache_points/   (560 JSON — SoilGrids nokta verisi)
+    +-- data/
+    |   +-- raw/                 (6 ham veri dosyasi)
+    +-- result/
+    |   +-- analysis/            (feature importance, coverage)
+    |   +-- datasets/            (v1, v2, v3 dataset'ler)
+    |   +-- features/            (ara ozellik dosyalari)
+    |   +-- models/              (joblib, meta, raporlar)
+    |   +-- predictions/         (holdout tahminleri)
+    +-- src/
+        +-- pipeline/            (01-10 veri hazirlama scriptleri)
+        +-- models/              (06-11 model egitim scriptleri)
+        +-- analysis/            (12, 99 analiz scriptleri)
+        +-- utils/               (names.py — il adi normalizasyon)
+        +-- config.py            (merkezi ayarlar)
+
+
+================================================================================
+   RAPOR SONU
+================================================================================

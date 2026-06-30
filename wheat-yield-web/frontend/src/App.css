@@ -1,0 +1,175 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f1f5f9; color: #1e293b; }
+
+/* NAVBAR */
+.navbar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: linear-gradient(135deg, #14532d 0%, #166534 100%);
+  color: white; padding: 0 2rem; height: 60px;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+}
+.nav-brand { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
+.nav-links { display: flex; gap: 6px; }
+.nav-btn {
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+  color: white; padding: 6px 16px; border-radius: 8px;
+  cursor: pointer; font-size: 0.875rem; transition: all 0.15s;
+}
+.nav-btn:hover { background: rgba(255,255,255,0.25); }
+.nav-btn.active { background: rgba(255,255,255,0.25); border-color: rgba(255,255,255,0.5); font-weight: 600; }
+
+/* MAIN */
+.main-content { padding: 1.5rem 2rem; max-width: 1500px; margin: 0 auto; }
+
+/* ===================== DASHBOARD ===================== */
+.dashboard-hero {
+  display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(135deg, #166534 0%, #15803d 100%);
+  color: white; border-radius: 16px; padding: 2rem 2.5rem; margin-bottom: 1.5rem;
+  box-shadow: 0 4px 20px rgba(22,101,52,0.3);
+}
+.hero-text h1 { font-size: 1.6rem; font-weight: 800; margin-bottom: 0.5rem; }
+.hero-text p { opacity: 0.85; font-size: 0.9rem; }
+.hero-badge { text-align: center; background: rgba(255,255,255,0.15); border-radius: 12px; padding: 1rem 1.5rem; }
+.badge-r2 { font-size: 2.5rem; font-weight: 900; }
+.badge-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.8; }
+.badge-sub { font-size: 0.75rem; opacity: 0.7; margin-top: 4px; }
+
+/* STAT CARDS */
+.stat-cards { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
+.stat-card {
+  background: white; border-radius: 12px; padding: 1.25rem;
+  border-top: 3px solid; min-width: 150px; flex: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.stat-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+.stat-label { font-size: 0.7rem; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; }
+.stat-value { font-size: 1.4rem; font-weight: 700; margin: 2px 0; }
+.stat-sub { font-size: 0.72rem; color: #94a3b8; }
+
+/* DASHBOARD GRID */
+.dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+.chart-card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.chart-card.wide { grid-column: 1 / -1; }
+.chart-card h3 { font-size: 0.95rem; color: #1e293b; margin-bottom: 0.25rem; }
+.chart-sub { font-size: 0.8rem; color: #94a3b8; margin-bottom: 1rem; }
+
+/* MODEL INFO */
+.model-info-box {
+  background: white; border-radius: 12px; padding: 1.5rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06); border-left: 4px solid #16a34a;
+}
+.model-info-box h3 { font-size: 1rem; margin-bottom: 1rem; }
+.model-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 2rem; }
+.model-info-grid div { font-size: 0.85rem; color: #475569; padding: 0.25rem 0; border-bottom: 1px solid #f1f5f9; }
+
+/* ===================== MAP PAGE ===================== */
+.map-page { display: flex; flex-direction: column; gap: 1rem; }
+
+.map-controls {
+  background: white; border-radius: 12px; padding: 1rem 1.5rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
+.control-group label { font-size: 0.8rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; display: block; }
+.year-buttons { display: flex; flex-wrap: wrap; gap: 4px; }
+.year-btn {
+  background: #f1f5f9; border: none; border-radius: 6px;
+  padding: 4px 10px; font-size: 0.8rem; cursor: pointer;
+  color: #475569; transition: all 0.15s;
+}
+.year-btn:hover { background: #dcfce7; color: #166534; }
+.year-btn.active { background: #16a34a; color: white; font-weight: 600; }
+.metric-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.metric-btn {
+  background: #f1f5f9; border: none; border-radius: 8px;
+  padding: 6px 14px; font-size: 0.85rem; cursor: pointer;
+  color: #475569; transition: all 0.15s;
+}
+.metric-btn:hover { background: #dcfce7; }
+.metric-btn.active { background: #166534; color: white; font-weight: 600; }
+
+.map-layout { display: grid; grid-template-columns: 480px 1fr; gap: 1rem; }
+.map-left { display: flex; flex-direction: column; gap: 1rem; }
+.map-right {
+  background: white; border-radius: 12px; padding: 1.5rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06); min-height: 600px;
+}
+
+.map-header { display: flex; justify-content: space-between; align-items: center; }
+.map-header h2 { font-size: 1.1rem; color: #1e293b; }
+.map-stats { display: flex; gap: 1rem; }
+.map-stat { font-size: 0.8rem; color: #64748b; }
+.map-stat strong { color: #1e293b; }
+.map-loading { text-align: center; padding: 3rem; color: #94a3b8; font-size: 0.9rem; }
+
+/* TOP 5 */
+.top5 { background: white; border-radius: 12px; padding: 1rem; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.top5 h4 { font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem; }
+.top5-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  border-radius: 6px; cursor: pointer; transition: background 0.15s;
+  font-size: 0.85rem;
+}
+.top5-row:hover, .top5-row.selected { background: #f0fdf4; }
+.top5-rank { color: #94a3b8; font-size: 0.75rem; width: 24px; }
+.top5-name { flex: 1; color: #1e293b; }
+.top5-val { font-weight: 700; color: #16a34a; }
+
+/* PROVINCE LIST */
+.prov-list-wrap { background: white; border-radius: 12px; padding: 1rem; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.prov-list-wrap h4 { font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem; }
+.province-list { display: flex; flex-wrap: wrap; gap: 4px; max-height: 160px; overflow-y: auto; }
+.prov-btn {
+  background: #f8fafc; border: none; border-radius: 4px;
+  padding: 3px 8px; font-size: 0.75rem; cursor: pointer; transition: background 0.15s;
+}
+.prov-btn:hover { background: #dcfce7; }
+.prov-btn.selected { background: #16a34a; color: white; }
+
+/* EMPTY STATE */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 400px; color: #94a3b8; text-align: center; gap: 1rem; }
+.empty-state h3 { font-size: 1.3rem; color: #475569; }
+.empty-state p { max-width: 340px; font-size: 0.9rem; line-height: 1.6; }
+.hint-cards { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 0.5rem; }
+.hint { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 12px; font-size: 0.8rem; color: #64748b; }
+
+/* ===================== PROVINCE DETAIL ===================== */
+.province-detail h2 { font-size: 1.3rem; color: #166534; margin-bottom: 1rem; }
+.chart-section { margin-top: 1rem; }
+.chart-section h3 { font-size: 0.95rem; color: #475569; margin-bottom: 0.75rem; font-weight: 600; }
+
+.tabs { display: flex; gap: 4px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+.tab { background: #f1f5f9; border: none; border-radius: 8px; padding: 5px 12px; cursor: pointer; font-size: 0.8rem; color: #475569; transition: all 0.15s; }
+.tab:hover { background: #dcfce7; }
+.tab.active { background: #166534; color: white; font-weight: 600; }
+
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.data-table th { background: #f8fafc; padding: 8px 10px; text-align: left; color: #475569; font-weight: 600; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
+.data-table td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; }
+.data-table tr:hover td { background: #f8fafc; }
+.holdout-row td { background: #fefce8 !important; }
+.table-note { font-size: 0.72rem; color: #94a3b8; margin-top: 0.5rem; }
+
+.soil-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
+.soil-card { background: #f8fafc; border-radius: 8px; padding: 1rem; border-left: 4px solid; }
+.soil-label { font-size: 0.72rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
+.soil-value { font-size: 1.2rem; font-weight: 700; margin-top: 4px; }
+
+.custom-tooltip { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; font-size: 0.82rem; line-height: 1.6; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+
+/* Loading */
+.loading { text-align: center; padding: 2rem; color: #94a3b8; }
+.empty { text-align: center; padding: 2rem; color: #94a3b8; }
+
+@media (max-width: 1100px) {
+  .map-layout { grid-template-columns: 1fr; }
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .chart-card.wide { grid-column: auto; }
+}
+@media (max-width: 768px) {
+  .main-content { padding: 1rem; }
+  .dashboard-hero { flex-direction: column; gap: 1rem; }
+  .model-info-grid { grid-template-columns: 1fr; }
+}
